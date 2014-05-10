@@ -3,18 +3,138 @@
 
 ## Loading and preprocessing the data
 
+```{r loaddata, echo=TRUE}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip", "activity.zip", method="curl")
+a<-unz("activity.zip", "activity.csv")
+activity<-read.csv(a)
+```
 
 
 ## What is mean total number of steps taken per day?
 
+Here is a histogram of the total number of steps taken each day.
+```{r stepsperday, echo=TRUE}
+dates<-levels(factor(activity$date))
+length<-length(dates)
+totalsteps<-rep(NA, length)
+for(i in 1:length){
+  temp<-activity[as.character(activity$date)==dates[i], "steps"]
+  totalsteps[i]<-sum(temp,na.rm=TRUE)
+}
+hist(totalsteps, main = "Histogram of Total Steps per Day", xlab = "Total Steps per Day")
+```
+
+Here is the mean number of steps taken per day.
+
+```{r meansteps, echo=TRUE}
+mean(totalsteps)
+```
+
+ Here is the median number of steps taken per day.
+
+```{r mediansteps, echo=TRUE}
+median(totalsteps)
+```
 
 
 ## What is the average daily activity pattern?
 
+Here is a time series plot of the 5-minute intervals and the average number of steps during each interval (averaged across all days).
+```{r avgactivitypattern, echo=TRUE}
+intervals<-levels(factor(activity$interval))
+lengthint<-length(intervals)
+avgsteps<-rep(NA, lengthint)
+for(i in 1:lengthint){
+  stepsint<-activity[as.character(activity$interval)==intervals[i], "steps"]
+  avgsteps[i]<-mean(stepsint,na.rm=TRUE)
+}
+plot(avgsteps~intervals, type="l", xlab="5-minute interval", ylab="average number of steps taken")
+```
 
+Here is the five-minute interval that, on average across all the days in the data set, contains the maximum number of steps:
+```{r maxsteps, echo=TRUE}
+intervals[which.max(avgsteps)]
+```
 
 ## Imputing missing values
+The total number of missing values in the dataset:
+```{r missingvals, echo=TRUE}
+step<-activity$steps
+length(step[is.na(step)])
+```
 
+### A strategy filling in missing values
+Create a new dataset, activitynew, as follows.  For each 5-minute interval that is missing data, replace each "NA" from the original file with the mean for that 5-minute interval.
 
+```{r fillin, echo=TRUE}
+activitynew<-activity
+for(i in 1:nrow(activity)){
+  if(is.na(activity[i, "steps"])){
+    j<-activity[i, "interval"]
+    avg<-avgsteps[which(intervals==j)]
+    activitynew[i, "steps"]<-avg
+  }
+}
+```
+
+Here is a histogram of the total number of steps taken each day.
+
+```{r totalnew, echo=TRUE}
+totalstepsnew<-rep(NA, length)
+for(i in 1:length){
+  temp<-activitynew[as.character(activitynew$date)==dates[i], "steps"]
+  totalstepsnew[i]<-sum(temp)
+}
+hist(totalstepsnew, main = "Histogram of Total Steps per Day", xlab = "Total Steps per Day")
+```
+
+Here is the mean total number of steps taken per day.
+
+```{r meannew, echo=TRUE}
+mean(totalstepsnew)
+```
+
+Here is the median total number of steps taken per day.
+
+```{r mediannew, echo=TRUE}
+median(totalstepsnew)
+```
+
+These values are higher than the estimates from the first part of the assignment.  This is because the total now includes all the steps from before, summed together with estimates for the previously disregarded intervals.
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+This code creates a new factor variable in the data set with two levels: "weekday" and "weekend", indicating whether each date is a weekday or a weekend day.
+
+```{r weekdays, echo=TRUE}
+partofweek<-function(date){
+  whichweekday<-weekdays(as.Date(date))
+ if(whichweekday=="Saturday"||whichweekday=="Sunday"){"weekend"}
+ else{"weekday"}
+}
+partofweekcol<-as.factor(sapply(activitynew$date, partofweek))
+activitynewdays<-cbind(activitynew, partofweekcol)
+names(activitynewdays)[4]<-"Part of week"
+```
+
+Here is a time series plot of the five-minute intervals and the average number of steps taken, averaged across all weekday days or weekend days.  (We are now using the data set activitynew, with estimates for the missing values filled in.)
+
+```{r activitypatternnew, echo=TRUE}
+wkendavg<-rep(NA, lengthint)
+  for(i in 1:lengthint){
+  stepsint<-activitynewdays[as.character(activitynewdays$interval)==intervals[i] & activitynewdays$"Part of week"=="weekend", "steps"]
+  wkendavg[i]<-mean(stepsint)
+}
+
+wkdayavg<-rep(NA, lengthint)
+  for(i in 1:lengthint){
+  stepsint<-activitynewdays[as.character(activitynewdays$interval)==intervals[i] & activitynewdays$"Part of week"=="weekday", "steps"]
+  wkdayavg[i]<-mean(stepsint)
+}
+
+avgdf<-data.frame(c(rep("weekday", lengthint), rep("weekend", lengthint)), c(wkdayavg, wkendavg), c(as.numeric(intervals), as.numeric(intervals)))
+names(avgdf)<-c("daytype", "averages", "intervals")
+
+library(lattice)
+xyplot(averages~intervals | daytype, data=avgdf, type="l", xlab="Interval", ylab="Number of steps", layout=c(1, 2))
+```
